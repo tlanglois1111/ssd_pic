@@ -103,11 +103,14 @@ ap.add_argument("-d", "--debug", type=int, default=0,
                 help="whether or not to log debug messages")
 ap.add_argument("-i", "--inference", type=int, default=1,
                 help="do inference on video stream")
+ap.add_argument("-c", "--captureclass", type=int, default=0,
+                help="capture the individual inferenced images")
 ap.add_argument("-l", "--logfile", type=str,help="log to file")
 args = vars(ap.parse_args())
 
 doinfer = args['inference']
 dodebug = args['debug']
+capture_class_images = args['captureclass']
 
 # configure logging
 FORMAT = '%(asctime)-15s %(levelname)-8s %(message)s'
@@ -198,6 +201,7 @@ if camera_type == 'picamera':
         today = datetime.datetime.now().strftime("%Y%m%d")
 
         ssd_counter = 0
+        class_counter = 0
         address = ('', 10000)
         server = StreamingServer(address, StreamingHandler)
 
@@ -285,7 +289,20 @@ if camera_type == 'picamera':
                         if ymax > IM_HEIGHT:
                             ymax = IM_HEIGHT-1
 
-                        stuff = "tag: {}:  prob:{:.2f}  xmin:{:.2f}  ymin:{:.2f}  xmax:{:.2f}  ymax:{:.2f}".format(output_map[id],prob,xmin,ymin,xmax,ymax)
+                        if capture_class_images:
+                            dir = "/tmp/cats/train/" + frame_filename
+                            if not os.path.isdir(dir):
+                                os.mkdir(dir)
+                                os.chmod(dir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+                            path = "/tmp/cats/train/{}/train_{}_{:03d}_{}_{:03d}_{:03d}_{:03d}_{:03d}_{:03d}.jpg".format(frame_filename, today, class_counter, output_map[id], irand, xmin, xmax, ymin, ymax)
+
+                            crop = frame[ymin:ymax,xmin:xmax].copy()
+                            cv2.imwrite(path, crop)
+                            os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH | stat.S_IWOTH)
+                            class_counter += 1
+
+
+                        stuff = "tag: {}:  prob:{:.2f}  xmin:{:03d}  ymin:{:03d}  xmax:{:03d}  ymax:{:03d}".format(output_map[id],prob,xmin,ymin,xmax,ymax)
                         logging.info(stuff)
 
                         cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (255, 165, 20), 2)
