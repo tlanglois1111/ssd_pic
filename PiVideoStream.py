@@ -10,15 +10,17 @@ class PiVideoStream:
     IM_WIDTH = 640    #Use smaller resolution for
     IM_HEIGHT = 480   #slightly faster framerate
 
-    def __init__(self, resolution=(IM_WIDTH, IM_HEIGHT), framerate=20):
+    def __init__(self, resolution=(IM_WIDTH, IM_HEIGHT), framerate=10):
         # initialize the camera and stream
         self.camera = PiCamera()
         self.camera.resolution = resolution
         self.camera.framerate = framerate
+        self.camera.exposure_mode = 'auto'
+
         self.rawCapture = PiRGBArray(self.camera, size=resolution)
         self.rawCapture.truncate(0)
 
-        self.stream = self.camera.capture_continuous(self.rawCapture,format="rgb", use_video_port=False)
+        self.stream = self.camera.capture_continuous(self.rawCapture,format="rgb", use_video_port=True)
 
         # initialize the frame and the variable used to indicate
         # if the thread should be stopped

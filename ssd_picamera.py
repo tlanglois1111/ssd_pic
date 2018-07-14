@@ -9,6 +9,8 @@ from ssd_encoder_decoder.ssd_output_decoder import decode_detections, decode_det
 
 from keras.preprocessing.image import img_to_array
 from keras.models import load_model
+from keras_layers.keras_layer_DecodeDetectionsFast import DecodeDetectionsFast
+
 import os
 import cv2
 import numpy as np
@@ -26,6 +28,14 @@ from random import randrange
 import argparse
 import time
 
+# Set up camera constants
+#IM_WIDTH = 1280
+#IM_HEIGHT = 720
+#IM_WIDTH = 640    #Use smaller resolution for
+#IM_HEIGHT = 480   #slightly faster framerate
+IM_WIDTH = 300    #Use smaller resolution for
+IM_HEIGHT = 300   #slightly faster framerate
+
 PAGE="""\
 <html>
 <head>
@@ -33,7 +43,7 @@ PAGE="""\
 </head>
 <body>
 <h1>PiCamera MJPEG Streaming Demo</h1>
-<img src="stream.mjpg" width="640" height="480" />
+<img src="stream.mjpg" width="""+str(IM_WIDTH)+""" height="""+str(IM_HEIGHT)+""" />
 </body>
 </html>
 """
@@ -122,12 +132,6 @@ if (args["logfile"]):
 else:
     logging.basicConfig(level=loglevel, format=FORMAT)
 
-# Set up camera constants
-#IM_WIDTH = 1280
-#IM_HEIGHT = 720
-IM_WIDTH = 640    #Use smaller resolution for
-IM_HEIGHT = 480   #slightly faster framerate
-
 # Select camera type (if user enters --usbcam when calling this script,
 # a USB webcam will be used)
 camera_type = 'picamera'
@@ -173,14 +177,14 @@ ssd_img_width = 300
 normalize_coords = True
 output_map = {0: 'background', 1: 'buddy', 2: 'jade', 3: 'lucy', 4: 'tim'}
 # Set the threshold for detection
-detection_threshold = 0.25
+detection_threshold = 0.5
 ssd_image_list = []
 irand = randrange(0, 1000)
 
 ### Picamera ###
 if camera_type == 'picamera':
 
-    vs = PiVideoStream().start()
+    vs = PiVideoStream(resolution=(IM_WIDTH, IM_HEIGHT)).start()
 
     output = StreamingOutput()
 
@@ -213,14 +217,19 @@ if camera_type == 'picamera':
 
         if (doinfer):
             logging.info("load model...")
-            model_path = './ssd7_cats_epoch-96_loss-1.2905_val_loss-1.2720.h5'
+            weights_path = './ssd7_cats_weights.h5'
+            infer_model_path = './ssd7_cats_infer_fast.h5'
 
             # We need to create an SSDLoss object in order to pass that to the model loader.
             ssd_loss = SSDLoss(neg_pos_ratio=3, alpha=1.0)
 
-            K.clear_session() # Clear previous models from memory.
+            #K.clear_session() # Clear previous models from memory.
 
-            model = load_model(model_path, custom_objects={'AnchorBoxes': AnchorBoxes,'compute_loss': ssd_loss.compute_loss})
+            model = load_model(infer_model_path, custom_objects={'AnchorBoxes': AnchorBoxes,
+                                                                 'DecodeDetectionsFast': DecodeDetectionsFast,
+                                                                 'compute_loss': ssd_loss.compute_loss})
+            model.load_weights(weights_path, by_name=True)
+
             logging.info("model loaded")
 
         time.sleep(2.0)
@@ -249,6 +258,8 @@ if camera_type == 'picamera':
 
                 logging.debug("do prediction...")
                 y_pred = model.predict(image)
+                obj = [y_pred[k][y_pred[k,:,1] > detection_threshold] for k in range(y_pred.shape[0])]
+                """
                 obj = decode_detections(y_pred,
                                         confidence_thresh=0.5,
                                         iou_threshold=0.45,
@@ -256,6 +267,7 @@ if camera_type == 'picamera':
                                         normalize_coords=normalize_coords,
                                         img_height=ssd_img_height,
                                         img_width=ssd_img_width)
+                """
 
                 #np.set_printoptions(precision=2, suppress=True, linewidth=90)
                 logging.debug("do prediction done")
